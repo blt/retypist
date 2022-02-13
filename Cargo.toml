@@ -1,0 +1,25 @@
+[package]
+name = "retypist"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+argh = "0.1"
+anyhow = "1.0"
+walkdir = "2.3"
+
+[dependencies.proc-macro2]
+version = "1.0"
+features = ["span-locations"]
+
+[dependencies.syn]
+version = "1.0"
+features = ["full", "extra-traits", "visit"]
+
+[profile.release]
+lto = true        # Optimize our binary at link stage.
+codegen-units = 1 # Increases compile time but improves optmization alternatives.
+opt-level = 3     # Optimize with 'all' optimization flipped on. May produce larger binaries than 's' or 'z'.
+debug = true
