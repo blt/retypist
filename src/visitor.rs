@@ -59,4 +59,36 @@ impl<'ast, 'sf> Visit<'ast> for Visitor<'sf> {
         self.mutations.extend(self.ops_for_visibility(&node.vis));
         syn::visit::visit_fields(self, &node.fields);
     }
+
+    /// Visit `fn`
+    fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
+        self.mutations.extend(self.ops_for_visibility(&node.vis));
+    }
+
+    /// Visit `enum`
+    fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
+        self.mutations.extend(self.ops_for_visibility(&node.vis));
+        for variant in node.variants.iter() {
+            syn::visit::visit_variant(self, &variant);
+        }
+    }
+
+    /// Visit `enum` variants
+    fn visit_variant(&mut self, node: &'ast syn::Variant) {
+        syn::visit::visit_fields(self, &node.fields);
+    }
+
+    /// Visit fields of structs, enums etc
+    fn visit_fields(&mut self, node: &'ast syn::Fields) {
+        if let syn::Fields::Named(named) = node {
+            for field in named.named.iter() {
+                syn::visit::visit_field(self, field);
+            }
+        }
+    }
+
+    /// Visit field, wherever it is
+    fn visit_field(&mut self, node: &'ast syn::Field) {
+        self.mutations.extend(self.ops_for_visibility(&node.vis))
+    }
 }
