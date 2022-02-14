@@ -1,10 +1,8 @@
 use crate::interrupt::check_interrupted;
 use anyhow::{anyhow, Context, Result};
-use std::borrow::Cow;
-use std::env;
 use std::path::Path;
 use std::time::Duration;
-use subprocess::{Popen, PopenConfig, Redirection};
+use subprocess::{Exec, Popen, Redirection};
 
 /// The result of running a single Cargo command.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -26,26 +24,15 @@ const WAIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Run one `cargo` subprocess and with appropriate handling of interrupts.
 pub fn run_cargo(cargo_args: &[&str], in_dir: &Path) -> Result<CargoResult> {
-    // When run as a Cargo subcommand, which is the usual/intended case,
-    // $CARGO tells us the right way to call back into it, so that we get
-    // the matching toolchain etc.
-    let cargo_bin: Cow<str> = env::var("CARGO")
-        .map(Cow::from)
-        .unwrap_or(Cow::Borrowed("cargo"));
-
-    let mut argv: Vec<&str> = vec![&cargo_bin];
-    argv.extend(cargo_args.iter());
-    let mut child = Popen::create(
-        &argv,
-        PopenConfig {
-            stdin: Redirection::None,
-            stdout: Redirection::None,
-            stderr: Redirection::Merge,
-            cwd: Some(in_dir.as_os_str().to_owned()),
-            ..setpgid_on_unix()
-        },
-    )
-    .with_context(|| format!("failed to spawn {} {}", cargo_bin, cargo_args.join(" ")))?;
+    let cargo_bin = "cargo";
+    let mut child = Exec::cmd(cargo_bin)
+        .stdin(Redirection::None)
+        .stdout(Redirection::None)
+        .stderr(Redirection::Merge)
+        .cwd(in_dir.as_os_str().to_owned())
+        .args(cargo_args)
+        .env("RUSTFLAGS", "-D warnings -A unused-imports")
+        .popen()?;
     let exit_status = loop {
         if let Err(e) = check_interrupted() {
             terminate_child(child)?;
@@ -91,17 +78,4 @@ fn terminate_child(mut child: Popen) -> Result<()> {
     }
     child.wait().context("wait for child after kill")?;
     Ok(())
-}
-
-#[cfg(unix)]
-fn setpgid_on_unix() -> PopenConfig {
-    PopenConfig {
-        setpgid: true,
-        ..Default::default()
-    }
-}
-
-#[cfg(not(unix))]
-fn setpgid_on_unix() -> PopenConfig {
-    Default::default()
 }
