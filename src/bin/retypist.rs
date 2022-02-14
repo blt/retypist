@@ -26,7 +26,8 @@ fn main() {
             let source_file = &mut mutation.source_file;
             source_file.rewrite(change).unwrap();
         }
-        match run_cargo(&["check", "--tests"], tree.root()) {
+        // TODO must allow users to configure their cargo args
+        match run_cargo(&["check", "--tests", "--workspace", "--features", "default metrics-benches codecs-benches language-benches remap-benches statistic-benches dnstap-benches benches"], tree.root()) {
             Ok(res) => match res {
                 CargoResult::Success => {
                     println!("PASS");
