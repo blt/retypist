@@ -9,6 +9,10 @@ edition = "2021"
 argh = "0.1"
 anyhow = "1.0"
 walkdir = "2.3"
+subprocess = "0.2"
+ctrlc = "3.2"
+nix = "0.23"
+rand = "0.8"
 
 [dependencies.proc-macro2]
 version = "1.0"
@@ -17,6 +21,9 @@ features = ["span-locations"]
 [dependencies.syn]
 version = "1.0"
 features = ["full", "extra-traits", "visit"]
+
+[dev-dependencies]
+pretty_assertions = "1"
 
 [profile.release]
 lto = true        # Optimize our binary at link stage.

@@ -3,6 +3,9 @@
 
 use crate::{mutation::Mutation, visitor::Visitor};
 use anyhow::{anyhow, Context, Result};
+use rand::prelude::SliceRandom;
+use rand::seq::IteratorRandom;
+use rand::Rng;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -17,8 +20,8 @@ use syn::visit::Visit;
 /// files are written with Unix line endings.
 #[derive(Clone, PartialEq, Eq)]
 pub struct SourceFile {
-    /// Path relative to the root of the tree.
-    tree_relative: PathBuf,
+    /// Path of the file, including the user passed working directory
+    path: PathBuf,
 
     /// Full copy of the source.
     pub code: Rc<String>,
@@ -27,7 +30,7 @@ pub struct SourceFile {
 impl fmt::Debug for SourceFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SourceFile")
-            .field("tree_relative", &self.tree_relative)
+            .field("path", &self.path)
             .finish()
     }
 }
@@ -42,14 +45,9 @@ impl SourceFile {
             .with_context(|| format!("failed to read source of {:?}", full_path))?
             .replace("\r\n", "\n");
         Ok(SourceFile {
-            tree_relative: tree_relative.to_owned(),
+            path: full_path,
             code: Rc::new(code),
         })
-    }
-
-    /// Return the path of this file relative to the tree root, with forward slashes.
-    pub fn relative_path(&self) -> &Path {
-        self.tree_relative.as_path()
     }
 
     /// Generate a list of all mutation possibilities within this file.
@@ -60,27 +58,9 @@ impl SourceFile {
         Ok(v.mutations)
     }
 
-    // /// Generate a list of all mutation possibilities within this file.
-    // pub fn mutations(&self) -> Result<Vec<Mutation>> {
-    //     let syn_file = syn::parse_str::<syn::File>(&self.code)?;
-    //     let mut v = DiscoveryVisitor::new(self);
-    //     v.visit_file(&syn_file);
-    //     Ok(v.mutations)
-    // }
-
-    // /// Generate a list of all mutation possibilities within this file.
-    // pub fn mutations(&self) -> Result<Vec<Mutation>> {
-    //     let syn_file = syn::parse_str::<syn::File>(&self.code)?;
-    //     let mut v = DiscoveryVisitor::new(self);
-    //     v.visit_file(&syn_file);
-    //     Ok(v.mutations)
-    // }
-
-    // /// Return the path of this file relative to a given directory.
-    // // TODO: Maybe let the caller do this.
-    // pub fn within_dir(&self, dir: &Path) -> PathBuf {
-    //     dir.join(&self.tree_relative)
-    // }
+    pub fn rewrite(&mut self, edit: String) -> Result<()> {
+        std::fs::write(&self.path, &edit).map_err(|e| e.into())
+    }
 }
 
 #[derive(Debug)]
@@ -99,6 +79,10 @@ impl SourceTree {
         Ok(SourceTree {
             root: root.to_owned(),
         })
+    }
+
+    pub fn root(&self) -> &Path {
+        self.root.as_path()
     }
 
     /// Return an iterator of `src/**/*.rs` paths relative to the root.
@@ -130,12 +114,23 @@ impl SourceTree {
             })
     }
 
-    /// Return all the mutations that could possibly be applied to this tree.
-    pub fn mutations(&self) -> Result<Vec<Mutation>> {
-        let mut r = Vec::new();
-        for sf in self.source_files() {
-            r.extend(Rc::new(sf).mutations()?);
+    /// Return possible mutations for the tree.
+    pub fn mutation(&self) -> Result<Vec<Mutation>> {
+        let mut rng = rand::thread_rng();
+        let total: usize = rng.gen_range(1..16);
+        let mut mutations = Vec::with_capacity(total);
+        // TODO add a timeout for search here or something, could loop forever
+        while mutations.len() < total {
+            let sf = self.source_files().choose(&mut rng);
+            if let Some(sf) = sf {
+                let mut possible_mutants = sf.mutations()?;
+                if possible_mutants.is_empty() {
+                    continue;
+                }
+                possible_mutants.shuffle(&mut rng);
+                mutations.push(possible_mutants.pop().unwrap());
+            }
         }
-        Ok(r)
+        Ok(mutations)
     }
 }

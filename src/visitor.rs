@@ -47,7 +47,7 @@ impl<'sf> Visitor<'sf> {
                     .map(|op| Mutation::new(self.source_file.clone(), *op, span))
                     .collect()
             }
-            syn::Visibility::Restricted(..) => unimplemented!(),
+            syn::Visibility::Restricted(..) => vec![], // TODO support
             syn::Visibility::Inherited => vec![],
         }
     }
